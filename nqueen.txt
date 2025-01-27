@@ -1,82 +1,100 @@
-#n queen problem
-import copy
-import random
+% Tic-Tac-Toe board is represented as a list of 9 elements.
+% 'x' for player X, 'o' for player O, and '_' for empty spaces.
 
+% Start the game with an empty board.
+start_game :-
+    write('Welcome to Tic-Tac-Toe!'), nl,
+    Board = ['_', '_', '_', '_', '_', '_', '_', '_', '_'],
+    display_board(Board),
+    play_game(Board, 'x').
 
-def take_input():
-  while True:
-    try:
-      n= int(input('Enter the size of chessboard \n n=?'))
-      if n<=3: 
-        print("Enter a vlaue that is greater than 3")
-        continue
-      return n
-    except ValueError:
-      print("Enter a valid integer. Enter again")
+% Display the board in a 3x3 grid format.
+display_board([A, B, C, D, E, F, G, H, I]) :-
+    format('~w | ~w | ~w~n', [A, B, C]),
+    write('---------'), nl,
+    format('~w | ~w | ~w~n', [D, E, F]),
+    write('---------'), nl,
+    format('~w | ~w | ~w~n', [G, H, I]), nl.
 
-def get_board(n):
-  board = ["x"]*n
-  for i in range(n):
-    board[i] = ["x"]*n
-  return board
+% Game loop: check for win/draw or make a move.
+play_game(Board, Player) :-
+    (   winner(Board, Winner)
+    ->  format('Player ~w wins!~n', [Winner]), display_board(Board)
+    ;   \+ member('_', Board)
+    ->  write('It\'s a draw!'), nl, display_board(Board)
+    ;   format('Player ~w\'s turn:~n', [Player]),
+        (   Player = 'x'
+        ->  player_move(Board, NewBoard)
+        ;   computer_move(Board, NewBoard)),
+        display_board(NewBoard),
+        switch_player(Player, NextPlayer),
+        play_game(NewBoard, NextPlayer)
+    ).
 
-def print_solution(solutions, n):
-  x = random.randint(0,len(solutions)-1)
-  for row in solutions[x]:
-    print(" ".join(row))
+% Switch the current player.
+switch_player('x', 'o').
+switch_player('o', 'x').
 
-def solve(board,col,n):
-  if col>=n:
-    return
+% Player move: get input and update the board.
+player_move(Board, NewBoard) :-
+    write('Enter your move (0-8): '), nl,
+    read(Move),
+    (   valid_move(Board, Move)
+    ->  make_move(Board, Move, 'x', NewBoard)
+    ;   write('Invalid move. Try again.'), nl,
+        player_move(Board, NewBoard)
+    ).
 
-  for i in range(n):
-    if is_safe(board,i,col,n):
-        board[i][col]="Q"
-    if col == n-1:
-        add_solution(board)
-        board[i][col]="x"
-        return
-    solve(board,col+1,n)
-    board[i][col]="x"
+% Computer move: use Minimax to find the best move.
+computer_move(Board, NewBoard) :-
+    write('Computer is thinking...'), nl,
+    best_move(Board, 'o', Move),
+    make_move(Board, Move, 'o', NewBoard).
 
-def is_safe(board,row,col,n):
-  for j in range(col):
-    if board[row][j]=="Q":
-      return False
-    
-    i,j = row,col
-    while i>=0 and j>=0:
-      if board[i][j]=="Q":
-        return False
-      i-=1
-      j-=1
+% Make a move on the board.
+make_move(Board, Index, Player, NewBoard) :-
+    nth0(Index, Board, '_'),
+    replace(Board, Index, Player, NewBoard).
 
-      x,y = row,col
-      while x<n and y>=0:
-        if board[x][y]=="Q":
-          return False
-        x+=1
-        y-=1
+% Replace an element in a list at a given index.
+replace([_|T], 0, X, [X|T]).
+replace([H|T], I, X, [H|R]) :-
+    I > 0,
+    NI is I - 1,
+    replace(T, NI, X, R).
 
-      return True
+% Check if a move is valid.
+valid_move(Board, Move) :-
+    integer(Move),
+    Move >= 0,
+    Move < 9,
+    nth0(Move, Board, '_').
 
-def add_solution(board):
-    global solutions
-    saved_board = copy.deepcopy(board)
-    solutions.append(saved_board)
+% Define winning conditions.
+winner(Board, Player) :-
+    (   Row = [0, 1, 2] ; Row = [3, 4, 5] ; Row = [6, 7, 8] ;  % Rows
+        Row = [0, 3, 6] ; Row = [1, 4, 7] ; Row = [2, 5, 8] ;  % Columns
+        Row = [0, 4, 8] ; Row = [2, 4, 6]                      % Diagonals
+    ),
+    maplist(nth0(Board), Row, [Player, Player, Player]).
 
-n = take_input()
+% Minimax algorithm to find the best move.
+best_move(Board, Player, BestMove) :-
+    findall(Move-Score, (valid_move(Board, Move), score_move(Board, Move, Player, Score)), Moves),
+    (   Player = 'o'  % Maximize for 'o'
+    ->  max_member(_-BestMove, Moves)
+    ;   min_member(_-BestMove, Moves)
+    ).
 
-board = get_board(n)
-
-solutions = []
-
-solve(board,0,n)
-
-print()
-print("one of the solution is:\n")
-print_solution(solutions,n)
-    
-    
-print()
-print("Total number of solution= ",len(solutions))
+% Score a move using Minimax.
+score_move(Board, Move, Player, Score) :-
+    make_move(Board, Move, Player, NewBoard),
+    (   winner(NewBoard, Player)
+    ->  Score = 1
+    ;   switch_player(Player, Opponent),
+        findall(OpponentScore, (valid_move(NewBoard, OppMove), score_move(NewBoard, OppMove, Opponent, OpponentScore)), Scores),
+        (   Scores = []
+        ->  Score = 0  % Draw
+        ;   (Player = 'o' -> max_list(Scores, Score) ; min_list(Scores, Score))
+        )
+    ).
